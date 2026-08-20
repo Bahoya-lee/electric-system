@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>电力系统暂态稳定性交互仿真平台</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --primary: #1a3a5c;
+      --primary-light: #2c5282;
+      --primary-dark: #0f2744;
+      --accent: #3182ce;
+      --bg: #f0f4f8;
+      --card-bg: #ffffff;
+      --text: #2d3748;
+      --text-muted: #718096;
+      --success: #38a169;
+      --warning: #d69e2e;
+      --danger: #e53e3e;
+      --shadow: 0 4px 20px rgba(26, 58, 92, 0.12);
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #e8eef5 0%, #f0f4f8 50%, #dce6f0 100%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px 40px;
+    }
+
+    /* 标题区 */
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .header h1 {
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      color: var(--primary-dark);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .header .subtitle {
+      margin-top: 8px;
+      font-size: clamp(0.85rem, 2.5vw, 1rem);
+      color: var(--text-muted);
+    }
+
+    /* 卡片通用样式 */
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(26, 58, 92, 0.06);
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--accent);
+      display: inline-block;
+    }
+
+    /* 波形图 */
+    #chart {
+      width: 100%;
+      height: 420px;
+    }
+
+    /* 控制面板 */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .slider-group {
+      display: grid;
+      grid-template-columns: 160px 1fr 80px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slider-group label {
+      font-size: 0.9rem;
+      color: var(--primary);
+      font-weight: 500;
+    }
+
+    .slider-group input[type="range"] {
+      width: 100%;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: linear-gradient(to right, var(--accent), var(--primary-light));
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .slider-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      background: var(--primary-dark);
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+    }
+
+    .slider-group input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      background: var(--primary-dark);
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+    }
+
+    .slider-value {
+      text-align: right;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 0.9rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* 状态显示区 */
+    .status-bar {
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 500;
+      text-align: center;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .status-bar.stable {
+      background: rgba(56, 161, 105, 0.12);
+      color: var(--success);
+      border: 1px solid rgba(56, 161, 105, 0.3);
+    }
+
+    .status-bar.critical {
+      background: rgba(214, 158, 46, 0.12);
+      color: #b7791f;
+      border: 1px solid rgba(214, 158, 46, 0.3);
+    }
+
+    .status-bar.unstable {
+      background: rgba(229, 62, 62, 0.12);
+      color: var(--danger);
+      border: 1px solid rgba(229, 62, 62, 0.3);
+    }
+
+    .status-bar.idle {
+      background: rgba(26, 58, 92, 0.06);
+      color: var(--text-muted);
+      border: 1px solid rgba(26, 58, 92, 0.1);
+    }
+
+    /* 指标与按钮行 */
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .metric-item {
+      background: rgba(26, 58, 92, 0.04);
+      padding: 10px 16px;
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+
+    .metric-item .label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-item .value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      font-family: "Consolas", "Courier New", monospace;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-light), var(--primary-dark));
+      color: #fff;
+      border: none;
+      padding: 12px 32px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(26, 58, 92, 0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(26, 58, 92, 0.35);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    /* 方程说明 */
+    .equation-box {
+      background: rgba(26, 58, 92, 0.04);
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-family: "Times New Roman", "SimSun", serif;
+      font-size: 1.05rem;
+      text-align: center;
+      color: var(--primary-dark);
+      margin-top: 8px;
+    }
+
+    /* 响应式 */
+    @media (max-width: 640px) {
+      .slider-group {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .slider-value {
+        text-align: left;
+      }
+
+      #chart {
+        height: 300px;
+      }
+
+      .action-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .btn-primary {
+        width: 100%;
+      }
+
+      .metrics {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 标题区 -->
+    <header class="header">
+      <h1>电力系统暂态稳定性交互仿真平台</h1>
+      <p class="subtitle">单机无穷大系统（SMIB）摇摆方程 · 四阶龙格-库塔法（RK4）数值求解</p>
+      <div class="equation-box">M · d²δ/dt² + D · dδ/dt = P<sub>m</sub> − P<sub>e</sub></div>
+    </header>
+
+    <!-- 波形图卡片 -->
+    <div class="card">
+      <div class="card-title">功角 δ(t) 时域响应</div>
+      <div id="chart"></div>
+    </div>
+
+    <!-- 控制面板卡片 -->
+    <div class="card">
+      <div class="card-title">仿真参数控制</div>
+      <div class="controls">
+        <div class="slider-group">
+          <label for="tClear">故障切除时间 t<sub>clear</sub></label>
+          <input type="range" id="tClear" min="0.1" max="1.2" step="0.01" value="0.7">
+          <span class="slider-value" id="tClearVal">0.70 s</span>
+        </div>
+        <div class="slider-group">
+          <label for="faultR">故障电阻系数 k<sub>f</sub></label>
+          <input type="range" id="faultR" min="0.01" max="1.0" step="0.01" value="0.1">
+          <span class="slider-value" id="faultRVal">0.10</span>
+        </div>
+        <div class="slider-group">
+          <label for="pm">机械功率 P<sub>m</sub></label>
+          <input type="range" id="pm" min="0.5" max="1.5" step="0.05" value="1.0">
+          <span class="slider-value" id="pmVal">1.00 p.u.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 状态与操作 -->
+    <div class="card">
+      <div id="statusBar" class="status-bar idle">点击「开始仿真」运行暂态稳定性分析</div>
+      <div class="action-row" style="margin-top: 20px;">
+        <div class="metrics">
+          <div class="metric-item">
+            <div class="label">临界切除时间 CCT</div>
+            <div class="value" id="metricCCT">—</div>
+          </div>
+          <div class="metric-item">
+            <div class="label">最大功角 δ<sub>max</sub></div>
+            <div class="value" id="metricMax">—</div>
+          </div>
+          <div class="metric-item">
+            <div class="label">最终功角 δ<sub>final</sub></div>
+            <div class="value" id="metricFinal">—</div>
+          </div>
+        </div>
+        <button class="btn-primary" id="runBtn">开始仿真</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // 电力系统暂态稳定性仿真 — 核心计算模块
+    // ============================================================
+
+    // 系统固定参数
+    const M = 8.0;           // 惯性常数
+    const D = 2.0;           // 阻尼系数
+    const P_NORMAL = 2.0;    // 正常运行时传输功率系数
+    const DELTA0 = 0.5236;   // 初始功角 (rad, ≈30°)
+    const OMEGA0 = 0.0;      // 初始角速度
+    const T_FAULT = 0.5;     // 故障发生时刻 (s)
+    const T_END = 3.0;       // 仿真总时长 (s)
+    const DT = 0.001;        // 积分步长 (s)
+    const PI = Math.PI;
+
+    // DOM 元素
+    const chartDom = document.getElementById('chart');
+    const chart = echarts.init(chartDom);
+    const tClearSlider = document.getElementById('tClear');
+    const faultRSlider = document.getElementById('faultR');
+    const pmSlider = document.getElementById('pm');
+    const tClearVal = document.getElementById('tClearVal');
+    const faultRVal = document.getElementById('faultRVal');
+    const pmVal = document.getElementById('pmVal');
+    const statusBar = document.getElementById('statusBar');
+    const metricCCT = document.getElementById('metricCCT');
+    const metricMax = document.getElementById('metricMax');
+    const metricFinal = document.getElementById('metricFinal');
+    const runBtn = document.getElementById('runBtn');
+
+    /**
+     * 根据当前时刻和参数计算电磁功率 Pe
+     * @param {number} t - 当前时间
+     * @param {number} delta - 功角
+     * @param {number} tClear - 故障切除时间
+     * @param {number} faultK - 故障期间功率系数
+     */
+    function calcPe(t, delta, tClear, faultK) {
+      if (t < T_FAULT) {
+        // 故障前：正常运行
+        return P_NORMAL * Math.sin(delta);
+      } else if (t < tClear) {
+        // 故障期间：电压跌落，传输功率大幅降低
+        return faultK * Math.sin(delta);
+      } else {
+        // 故障切除后：恢复正常
+        return P_NORMAL * Math.sin(delta);
+      }
+    }
+
+    /**
+     * 摇摆方程状态导数
+     * 状态向量: [δ, ω]
+     * dδ/dt = ω
+     * dω/dt = (Pm - Pe - D*ω) / M
+     */
+    function derivatives(t, state, pm, tClear, faultK) {
+      const delta = state[0];
+      const omega = state[1];
+      const pe = calcPe(t, delta, tClear, faultK);
+      const dDelta = omega;
+      const dOmega = (pm - pe - D * omega) / M;
+      return [dDelta, dOmega];
+    }
+
+    /**
+     * 四阶龙格-库塔法（RK4）单步积分
+     */
+    function rk4Step(t, state, dt, pm, tClear, faultK) {
+      const k1 = derivatives(t, state, pm, tClear, faultK);
+      const s2 = [state[0] + 0.5 * dt * k1[0], state[1] + 0.5 * dt * k1[1]];
+      const k2 = derivatives(t + 0.5 * dt, s2, pm, tClear, faultK);
+      const s3 = [state[0] + 0.5 * dt * k2[0], state[1] + 0.5 * dt * k2[1]];
+      const k3 = derivatives(t + 0.5 * dt, s3, pm, tClear, faultK);
+      const s4 = [state[0] + dt * k3[0], state[1] + dt * k3[1]];
+      const k4 = derivatives(t + dt, s4, pm, tClear, faultK);
+
+      return [
+        state[0] + (dt / 6) * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]),
+        state[1] + (dt / 6) * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1])
+      ];
+    }
+
+    /**
+     * 运行完整仿真，返回时间和功角数组
+     */
+    function runSimulation(pm, tClear, faultK) {
+      const times = [];
+      const deltas = [];
+      let state = [DELTA0, OMEGA0];
+      let t = 0;
+
+      times.push(t);
+      deltas.push(state[0]);
+
+      while (t < T_END - DT / 2) {
+        state = rk4Step(t, state, DT, pm, tClear, faultK);
+        t += DT;
+        times.push(parseFloat(t.toFixed(4)));
+        deltas.push(state[0]);
+      }
+
+      return { times, deltas };
+    }
+
+    /**
+     * 判断系统稳定性
+     * @returns {'stable'|'critical'|'unstable'}
+     */
+    function assessStability(deltas, pm) {
+      const deltaEq = Math.asin(Math.min(pm / P_NORMAL, 1.0)); // 稳态平衡功角
+
+      // 判据1：仿真期间功角是否超过180°
+      const maxDelta = Math.max(...deltas);
+      if (maxDelta > PI) {
+        return { status: 'unstable', maxDelta, deltaEq };
+      }
+
+      // 判据2：最终功角是否收敛到平衡点附近（1.0 rad 以内）
+      const finalDelta = deltas[deltas.length - 1];
+      const finalDeviation = Math.abs(finalDelta - deltaEq);
+
+      // 检查末尾 0.5s 的振荡幅度
+      const tailStart = Math.floor((T_END - 0.5) / DT);
+      const tailDeltas = deltas.slice(tailStart);
+      const tailRange = Math.max(...tailDeltas) - Math.min(...tailDeltas);
+
+      if (finalDeviation < 1.0 && tailRange < 1.0) {
+        return { status: 'stable', maxDelta, deltaEq, finalDelta };
+      }
+
+      return { status: 'critical', maxDelta, deltaEq, finalDelta };
+    }
+
+    /**
+     * 二分法估算临界切除时间 CCT
+     */
+    function estimateCCT(pm, faultK) {
+      const T_MIN = 0.1;
+      const T_MAX = 1.2;
+      const TOL = 0.005;
+
+      // 先检查边界
+      const resultMin = assessStability(runSimulation(pm, T_MIN, faultK).deltas, pm);
+      if (resultMin.status !== 'stable') return T_MIN;
+
+      const resultMax = assessStability(runSimulation(pm, T_MAX, faultK).deltas, pm);
+      if (resultMax.status === 'stable') return T_MAX;
+
+      // 二分搜索
+      let lo = T_MIN;
+      let hi = T_MAX;
+
+      while (hi - lo > TOL) {
+        const mid = (lo + hi) / 2;
+        const result = assessStability(runSimulation(pm, mid, faultK).deltas, pm);
+        if (result.status === 'stable' || result.status === 'critical') {
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+
+      return (lo + hi) / 2;
+    }
+
+    /**
+     * 弧度转角度（用于显示）
+     */
+    function rad2deg(rad) {
+      return (rad * 180 / PI).toFixed(1) + '°';
+    }
+
+    /**
+     * 更新 ECharts 波形图
+     */
+    function updateChart(times, deltas, tClear, stability) {
+      const isUnstable = stability.status === 'unstable';
+      const lineColor = isUnstable ? '#e53e3e' : '#38a169';
+
+      // 构造数据点
+      const data = times.map((t, i) => [t, deltas[i]]);
+
+      const option = {
+        backgroundColor: 'transparent',
+        tooltip: {
+          trigger: 'axis',
+          formatter: function (params) {
+            const p = params[0];
+            const deg = (p.data[1] * 180 / PI).toFixed(2);
+            return `t = ${p.data[0].toFixed(3)} s<br/>δ = ${p.data[1].toFixed(4)} rad (${deg}°)`;
+          }
+        },
+        grid: {
+          left: 60,
+          right: 30,
+          top: 40,
+          bottom: 50
+        },
+        xAxis: {
+          type: 'value',
+          name: '时间 t (s)',
+          nameLocation: 'center',
+          nameGap: 30,
+          min: 0,
+          max: T_END,
+          axisLine: { lineStyle: { color: '#1a3a5c' } },
+          splitLine: { lineStyle: { color: 'rgba(26,58,92,0.08)' } }
+        },
+        yAxis: {
+          type: 'value',
+          name: '功角 δ (rad)',
+          nameLocation: 'center',
+          nameGap: 45,
+          axisLine: { lineStyle: { color: '#1a3a5c' } },
+          splitLine: { lineStyle: { color: 'rgba(26,58,92,0.08)' } }
+        },
+        series: [
+          {
+            name: '功角 δ(t)',
+            type: 'line',
+            data: data,
+            showSymbol: false,
+            lineStyle: {
+              color: lineColor,
+              width: 2
+            },
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: isUnstable ? 'rgba(229,62,62,0.15)' : 'rgba(56,161,105,0.15)' },
+                { offset: 1, color: 'rgba(255,255,255,0)' }
+              ])
+            },
+            markLine: {
+              silent: true,
+              symbol: 'none',
+              lineStyle: {
+                type: 'dashed',
+                color: '#718096',
+                width: 1.5
+              },
+              label: {
+                show: true,
+                position: 'insideEndTop',
+                fontSize: 11,
+                color: '#718096'
+              },
+              data: [
+                {
+                  xAxis: T_FAULT,
+                  label: { formatter: '故障发生 (0.5s)' }
+                },
+                {
+                  xAxis: tClear,
+                  label: { formatter: '故障切除 (' + tClear.toFixed(2) + 's)' }
+                }
+              ]
+            },
+            // 180° 参考线
+            markArea: {
+              silent: true,
+              itemStyle: { color: 'rgba(229,62,62,0.04)' },
+              data: [[
+                { yAxis: PI, itemStyle: { color: 'rgba(229,62,62,0.06)' } },
+                { yAxis: Math.max(...deltas) * 1.1 }
+              ]]
+            }
+          }
+        ],
+        // 添加 180° 水平参考线
+        graphic: []
+      };
+
+      // 添加 π 参考线标注
+      option.series.push({
+        name: '180° 极限',
+        type: 'line',
+        data: [[0, PI], [T_END, PI]],
+        showSymbol: false,
+        lineStyle: {
+          color: 'rgba(229,62,62,0.4)',
+          type: 'dotted',
+          width: 1
+        },
+        tooltip: { show: false }
+      });
+
+      chart.setOption(option, true);
+    }
+
+    /**
+     * 更新状态显示区
+     */
+    function updateStatus(stability) {
+      statusBar.className = 'status-bar ' + stability.status;
+      const messages = {
+        stable: '暂态稳定 ✅ 系统在故障切除后恢复同步',
+        critical: '临界稳定 ⚠️ 功角摆动较大但趋于稳定',
+        unstable: '暂态失稳 ❌ 功角持续增大，系统失去同步'
+      };
+      statusBar.textContent = messages[stability.status];
+    }
+
+    /**
+     * 执行仿真并刷新界面
+     */
+    function simulate() {
+      const tClear = parseFloat(tClearSlider.value);
+      const faultK = parseFloat(faultRSlider.value);
+      const pm = parseFloat(pmSlider.value);
+
+      // 运行仿真
+      const { times, deltas } = runSimulation(pm, tClear, faultK);
+      const stability = assessStability(deltas, pm);
+
+      // 估算 CCT
+      const cct = estimateCCT(pm, faultK);
+
+      // 更新图表
+      updateChart(times, deltas, tClear, stability);
+
+      // 更新状态
+      updateStatus(stability);
+
+      // 更新指标
+      metricCCT.textContent = cct.toFixed(3) + ' s';
+      metricMax.textContent = rad2deg(stability.maxDelta);
+      metricFinal.textContent = rad2deg(deltas[deltas.length - 1]);
+    }
+
+    // ============================================================
+    // 事件绑定
+    // ============================================================
+
+    // 滑块实时更新显示值
+    tClearSlider.addEventListener('input', () => {
+      tClearVal.textContent = parseFloat(tClearSlider.value).toFixed(2) + ' s';
+    });
+
+    faultRSlider.addEventListener('input', () => {
+      faultRVal.textContent = parseFloat(faultRSlider.value).toFixed(2);
+    });
+
+    pmSlider.addEventListener('input', () => {
+      pmVal.textContent = parseFloat(pmSlider.value).toFixed(2) + ' p.u.';
+    });
+
+    // 开始仿真按钮
+    runBtn.addEventListener('click', simulate);
+
+    // 窗口大小变化时重绘图表
+    window.addEventListener('resize', () => chart.resize());
+
+    // 页面加载后自动运行一次默认仿真
+    simulate();
+  </script>
+</body>
+</html>
